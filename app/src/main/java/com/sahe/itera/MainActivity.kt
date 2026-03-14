@@ -2,6 +2,7 @@ package com.sahe.itera
 
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.navigation.compose.rememberNavController
@@ -17,6 +18,13 @@ class MainActivity : ComponentActivity() {
         setContent {
             IteraTheme {
                 val navController = rememberNavController()
+
+                BackHandler(enabled = true) {
+                    if (navController.previousBackStackEntry != null) {
+                        navController.popBackStack()
+                    }
+                }
+
                 IteraNavGraph(navController = navController)
             }
         }

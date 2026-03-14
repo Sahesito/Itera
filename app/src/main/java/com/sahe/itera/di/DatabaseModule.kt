@@ -4,8 +4,11 @@ import android.content.Context
 import androidx.room.Room
 import com.sahe.itera.data.database.IteraDatabase
 import com.sahe.itera.data.database.dao.SubjectDao
+import com.sahe.itera.data.database.dao.TaskDao
 import com.sahe.itera.data.repositories.SubjectRepositoryImpl
+import com.sahe.itera.data.repositories.TaskRepositoryImpl
 import com.sahe.itera.domain.repository.SubjectRepository
+import com.sahe.itera.domain.repository.TaskRepository
 import dagger.Binds
 import dagger.Module
 import dagger.Provides
@@ -25,10 +28,16 @@ object DatabaseModule {
             context,
             IteraDatabase::class.java,
             "itera_database"
-        ).build()
+        )
+            .fallbackToDestructiveMigration(true)
+            .build()
 
     @Provides
     fun provideSubjectDao(db: IteraDatabase): SubjectDao = db.subjectDao()
+
+
+    @Provides
+    fun provideTaskDao(db: IteraDatabase): TaskDao = db.taskDao()
 }
 
 @Module
@@ -37,7 +46,10 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindSubjectRepository(
-        impl: SubjectRepositoryImpl
-    ): SubjectRepository
+    abstract fun bindSubjectRepository( impl: SubjectRepositoryImpl ): SubjectRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindTaskRepository(impl: TaskRepositoryImpl): TaskRepository
 }
+

@@ -11,5 +11,6 @@ data class SubjectEntity(
     val colorHex: String,
     val credits: Int,
     val targetGrade: Float,
-    val currentAverage: Float?
+    val currentAverage: Float?,
+    val teacher: String = ""
 )

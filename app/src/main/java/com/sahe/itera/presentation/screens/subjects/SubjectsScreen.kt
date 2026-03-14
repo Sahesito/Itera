@@ -2,6 +2,7 @@ package com.sahe.itera.presentation.screens.subjects
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -15,6 +16,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.ArrowBackIosNew
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Palette
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,16 +25,19 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.core.graphics.toColorInt
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.navigation.NavController
 import com.sahe.itera.domain.model.Subject
+import com.sahe.itera.presentation.navigation.Screen
 import com.sahe.itera.presentation.theme.*
-import androidx.core.graphics.toColorInt
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SubjectsScreen(
     onBack: () -> Unit = {},
+    navController: NavController,
     viewModel: SubjectsViewModel = hiltViewModel()
 ) {
     val subjects by viewModel.subjects.collectAsStateWithLifecycle()
@@ -89,6 +94,9 @@ fun SubjectsScreen(
                     items(items = subjects, key = { it.id }) { subject ->
                         SubjectCard(
                             subject = subject,
+                            onClick = {
+                                navController.navigate(Screen.SubjectDetail.createRoute(subject.id))
+                            },
                             onDelete = { viewModel.delete(subject) }
                         )
                     }
@@ -100,8 +108,8 @@ fun SubjectsScreen(
     if (showDialog) {
         AddSubjectDialog(
             onDismiss = { showDialog = false },
-            onConfirm = { name, color ->
-                viewModel.insert(Subject(name = name, colorHex = color))
+            onConfirm = { name, color, teacher ->
+                viewModel.insert(Subject(name = name, colorHex = color, teacher = teacher))
                 showDialog = false
             }
         )
@@ -109,18 +117,41 @@ fun SubjectsScreen(
 }
 
 @Composable
-private fun SubjectCard(subject: Subject, onDelete: () -> Unit) {
+private fun SubjectCard(subject: Subject, onClick: () -> Unit, onDelete: () -> Unit) {
     val cardColor = remember(subject.colorHex) {
         runCatching { Color(subject.colorHex.toColorInt()) }
             .getOrDefault(AccentBlue)
     }
+    var showConfirm by remember { mutableStateOf(false) }
+
+    if (showConfirm) {
+        AlertDialog(
+            onDismissRequest = { showConfirm = false },
+            shape = RoundedCornerShape(24.dp),
+            title = { Text("¿Eliminar materia?") },
+            text = {
+                Text(
+                    "Se eliminarán también todas las tareas asociadas a \"${subject.name}\". Esta acción no se puede deshacer.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { onDelete(); showConfirm = false }) {
+                    Text("Eliminar", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showConfirm = false }) { Text("Cancelar") }
+            }
+        )
+    }
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -151,6 +182,25 @@ private fun SubjectCard(subject: Subject, onDelete: () -> Unit) {
                     fontWeight = FontWeight.SemiBold,
                     color = MaterialTheme.colorScheme.onSurface
                 )
+                if (subject.teacher.isNotBlank()) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(top = 2.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(12.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = subject.teacher,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
                 subject.currentAverage?.let {
                     Text(
                         text = "Promedio: ${"%.1f".format(it)}",
@@ -159,7 +209,7 @@ private fun SubjectCard(subject: Subject, onDelete: () -> Unit) {
                     )
                 }
             }
-            IconButton(onClick = onDelete) {
+            IconButton(onClick = { showConfirm = true }) {
                 Icon(
                     Icons.Rounded.Delete,
                     contentDescription = "Eliminar",
@@ -174,11 +224,17 @@ private fun SubjectCard(subject: Subject, onDelete: () -> Unit) {
 private fun EmptySubjectsPlaceholder() {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            Text("Sin materias", style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(
+                "Sin materias",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             Spacer(modifier = Modifier.height(4.dp))
-            Text("Toca + para agregar una", style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f))
+            Text(
+                "Toca + para agregar una",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+            )
         }
     }
 }
@@ -187,7 +243,7 @@ private fun EmptySubjectsPlaceholder() {
 @Composable
 private fun AddSubjectDialog(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, color: String) -> Unit
+    onConfirm: (name: String, color: String, teacher: String) -> Unit  // ← teacher agregado
 ) {
     val palette = listOf(
         "#B71C1C", "#C62828", "#D32F2F", "#E53935", "#F44336",
@@ -209,6 +265,7 @@ private fun AddSubjectDialog(
     )
 
     var name by remember { mutableStateOf("") }
+    var teacher by remember { mutableStateOf("") }   // ← nuevo
     var selectedColor by remember { mutableStateOf(palette.random()) }
     var showPalette by remember { mutableStateOf(false) }
 
@@ -274,6 +331,7 @@ private fun AddSubjectDialog(
         title = { Text("Nueva materia", style = MaterialTheme.typography.titleLarge) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+
                 OutlinedTextField(
                     value = name,
                     onValueChange = { name = it },
@@ -281,6 +339,22 @@ private fun AddSubjectDialog(
                     singleLine = true,
                     shape = RoundedCornerShape(16.dp),
                     modifier = Modifier.fillMaxWidth()
+                )
+
+                OutlinedTextField(
+                    value = teacher,
+                    onValueChange = { teacher = it },
+                    label = { Text("Profesor (opcional)") },
+                    singleLine = true,
+                    shape = RoundedCornerShape(16.dp),
+                    modifier = Modifier.fillMaxWidth(),
+                    leadingIcon = {
+                        Icon(
+                            Icons.Rounded.Person,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 )
 
                 Row(
@@ -325,7 +399,9 @@ private fun AddSubjectDialog(
         },
         confirmButton = {
             TextButton(
-                onClick = { if (name.isNotBlank()) onConfirm(name.trim(), selectedColor) },
+                onClick = {
+                    if (name.isNotBlank()) onConfirm(name.trim(), selectedColor, teacher.trim())
+                },
                 enabled = name.isNotBlank()
             ) {
                 Text("Agregar")
