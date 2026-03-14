@@ -1,6 +1,6 @@
 package com.sahe.itera.data.mappers
 
-import com.sahe.itera.data.database.dao.TaskWithSubject
+import com.sahe.itera.data.database.entities.TaskWithSubject
 import com.sahe.itera.data.database.entities.TaskEntity
 import com.sahe.itera.domain.model.Priority
 import com.sahe.itera.domain.model.Task

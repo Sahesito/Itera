@@ -12,6 +12,10 @@ sealed class Screen(val route: String) {
     }
     object Schedule     : Screen("schedule")
     object Calendar     : Screen("calendar")
-    object Notes        : Screen("notes")
+    object Notes : Screen("notes?subjectId={subjectId}") {
+        fun createRoute(subjectId: Long? = null) =
+            if (subjectId != null) "notes?subjectId=$subjectId"
+            else "notes?subjectId=-1"
+    }
     object Settings     : Screen("settings")
 }

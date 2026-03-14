@@ -11,6 +11,7 @@ import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
+import com.sahe.itera.presentation.screens.grades.GradesScreen
 //import com.sahe.itera.presentation.screens.grades.GradesScreen
 import com.sahe.itera.presentation.screens.home.HomeScreen
 import com.sahe.itera.presentation.screens.subjects.SubjectDetailScreen
@@ -31,12 +32,14 @@ fun IteraNavGraph(navController: NavHostController) {
         composable(Screen.Home.route) {
             HomeScreen(navController = navController)
         }
+
         composable(Screen.Subjects.route) {
             SubjectsScreen(
                 onBack = { navController.safePopBackStack() },
                 navController = navController
             )
         }
+
         composable(
             route = Screen.SubjectDetail.route,
             arguments = listOf(navArgument("subjectId") { type = NavType.LongType })
@@ -50,12 +53,14 @@ fun IteraNavGraph(navController: NavHostController) {
                 }
             )
         }
+
         composable(Screen.Tasks.route) {
             TasksScreen(
                 onBack = { navController.safePopBackStack() },
                 navController = navController
             )
         }
+
         composable(
             route = Screen.TaskDetail.route,
             arguments = listOf(navArgument("taskId") { type = NavType.LongType })
@@ -66,15 +71,29 @@ fun IteraNavGraph(navController: NavHostController) {
                 onBack = { navController.safePopBackStack() }
             )
         }
-        composable(Screen.Notes.route) {
-            //GradesScreen(onBack = { navController.safePopBackStack() })
+
+        composable(
+            route = Screen.Notes.route,
+            arguments = listOf(navArgument("subjectId") {
+                type = NavType.LongType
+                defaultValue = -1L
+            })
+        ) { backStackEntry ->
+            val subjectId = backStackEntry.arguments?.getLong("subjectId") ?: -1L
+            GradesScreen(
+                initialSubjectId = if (subjectId == -1L) null else subjectId,
+                onBack = { navController.safePopBackStack() }
+            )
         }
+
         composable(Screen.Schedule.route) {
             PlaceholderScreen("Horario") { navController.safePopBackStack() }
         }
+
         composable(Screen.Calendar.route) {
             PlaceholderScreen("Calendario") { navController.safePopBackStack() }
         }
+
         composable(Screen.Settings.route) {
             PlaceholderScreen("Ajustes") { navController.safePopBackStack() }
         }

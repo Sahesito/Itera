@@ -2,6 +2,7 @@ package com.sahe.itera.data.database.dao
 
 import androidx.room.*
 import com.sahe.itera.data.database.entities.TaskEntity
+import com.sahe.itera.data.database.entities.TaskWithSubject
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -35,16 +36,3 @@ interface TaskDao {
     @Delete
     suspend fun deleteTask(task: TaskEntity)
 }
-
-data class TaskWithSubject(
-    val id: Long,
-    val title: String,
-    val description: String,
-    val subjectId: Long?,
-    val dueDateTime: Long?,
-    val isCompleted: Boolean,
-    val hasReminder: Boolean,
-    val subjectName: String?,
-    val subjectColor: String?,
-    val priority: String = "NORMAL"
-)

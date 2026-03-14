@@ -3,8 +3,11 @@ package com.sahe.itera.di
 import android.content.Context
 import androidx.room.Room
 import com.sahe.itera.data.database.IteraDatabase
+import com.sahe.itera.data.database.dao.GradeDao
 import com.sahe.itera.data.database.dao.SubjectDao
 import com.sahe.itera.data.database.dao.TaskDao
+import com.sahe.itera.domain.repository.GradeRepository
+import com.sahe.itera.data.repositories.GradeRepositoryImpl
 import com.sahe.itera.data.repositories.SubjectRepositoryImpl
 import com.sahe.itera.data.repositories.TaskRepositoryImpl
 import com.sahe.itera.domain.repository.SubjectRepository
@@ -38,6 +41,9 @@ object DatabaseModule {
 
     @Provides
     fun provideTaskDao(db: IteraDatabase): TaskDao = db.taskDao()
+
+    @Provides
+    fun provideGradeDao(db: IteraDatabase): GradeDao = db.gradeDao()
 }
 
 @Module
@@ -51,5 +57,9 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTaskRepository(impl: TaskRepositoryImpl): TaskRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindGradeRepository(impl: GradeRepositoryImpl): GradeRepository
 }
 

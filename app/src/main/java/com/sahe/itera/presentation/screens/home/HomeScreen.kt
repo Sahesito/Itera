@@ -7,6 +7,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.*
@@ -18,6 +19,7 @@ import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -26,6 +28,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import com.sahe.itera.domain.model.Priority
+import com.sahe.itera.domain.model.Subject
 import com.sahe.itera.domain.model.Task
 import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
 import com.sahe.itera.domain.usecase.task.GetTasksUseCase
@@ -53,22 +56,25 @@ class HomeViewModel @Inject constructor(
     private val updateTask: UpdateTaskUseCase
 ) : ViewModel() {
 
-    fun toggleComplete(task: Task) {
-        viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
-    }
     val hasSubjects = getSubjects()
         .map { it.isNotEmpty() }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
+
+    val subjects = getSubjects()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
     val todayTasks = getTasks()
         .map { tasks ->
             val today = java.time.LocalDate.now()
             tasks.filter { task ->
-                !task.isCompleted &&
-                        task.dueDateTime?.toLocalDate() == today
+                !task.isCompleted && task.dueDateTime?.toLocalDate() == today
             }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun toggleComplete(task: Task) {
+        viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
+    }
 }
 
 @Composable
@@ -77,6 +83,7 @@ fun HomeScreen(
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val hasSubjects by viewModel.hasSubjects.collectAsStateWithLifecycle()
+    val subjects by viewModel.subjects.collectAsStateWithLifecycle()
     val todayTasks by viewModel.todayTasks.collectAsStateWithLifecycle()
 
     val modules = listOf(
@@ -84,8 +91,8 @@ fun HomeScreen(
         HomeModule("Tareas",     Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,    hasSubjects),
         HomeModule("Horario",    Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route, true),
         HomeModule("Calendario", Icons.Rounded.CalendarMonth,    "#E2BF55", Screen.Calendar.route, true),
-        HomeModule("Notas",    Icons.Rounded.Grade,    "#C6837A", Screen.Notes.route,    true),
-        HomeModule("Ajustes",  Icons.Rounded.Settings, "#78909C", Screen.Settings.route, true),
+        HomeModule("Notas",      Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,    true),
+        HomeModule("Ajustes",    Icons.Rounded.Settings,         "#78909C", Screen.Settings.route, true),
     )
 
     val today = remember {
@@ -101,6 +108,7 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp),
         contentPadding = PaddingValues(vertical = 24.dp)
     ) {
+        // Header
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -149,6 +157,18 @@ fun HomeScreen(
                 onToggle = { task -> viewModel.toggleComplete(task) }
             )
         }
+
+        // Card notas por materia
+        if (subjects.isNotEmpty()) {
+            item {
+                HomeSubjectsGradeCard(
+                    subjects = subjects,
+                    onSubjectClick = { subjectId ->
+                        navController.navigate(Screen.Notes.createRoute(subjectId))
+                    }
+                )
+            }
+        }
     }
 }
 
@@ -159,7 +179,6 @@ private fun HomeModuleItem(module: HomeModule, onClick: () -> Unit) {
             .getOrDefault(Color(0xFF5685D5))
     }
     val finalColor = if (module.enabled) color else color.copy(alpha = 0.35f)
-    val cardAlpha = if (module.enabled) 1f else 0.5f
 
     Card(
         modifier = Modifier
@@ -171,7 +190,7 @@ private fun HomeModuleItem(module: HomeModule, onClick: () -> Unit) {
             ),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface.copy(alpha = cardAlpha)
+            containerColor = MaterialTheme.colorScheme.surface
         ),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
@@ -217,10 +236,8 @@ private fun HomeTodaySummaryCard(
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
             modifier = Modifier.padding(20.dp),
@@ -275,7 +292,6 @@ private fun HomeTodaySummaryCard(
                             .fillMaxWidth()
                             .clickable { onTaskClick(task.id) }
                     ) {
-
                         IconButton(
                             onClick = { onToggle(task) },
                             modifier = Modifier.size(32.dp)
@@ -289,7 +305,6 @@ private fun HomeTodaySummaryCard(
                                 modifier = Modifier.size(20.dp)
                             )
                         }
-
                         Column(modifier = Modifier.weight(1f)) {
                             Text(
                                 text = task.title,
@@ -307,7 +322,9 @@ private fun HomeTodaySummaryCard(
                         }
                         task.dueDateTime?.let { dt ->
                             Text(
-                                text = dt.format(java.time.format.DateTimeFormatter.ofPattern("HH:mm")),
+                                text = dt.format(
+                                    java.time.format.DateTimeFormatter.ofPattern("HH:mm")
+                                ),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -335,6 +352,119 @@ private fun HomeTodaySummaryCard(
                             modifier = Modifier.padding(vertical = 4.dp)
                         )
                     }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeSubjectsGradeCard(
+    subjects: List<Subject>,
+    onSubjectClick: (Long) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Notas",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                val avgs = subjects.mapNotNull { it.currentAverage }
+                if (avgs.isNotEmpty()) {
+                    val overall = avgs.average().toFloat()
+                    val color = when {
+                        overall >= 14f -> Color(0xFF91D19A)
+                        overall >= 11f -> Color(0xFFE2BF55)
+                        else           -> Color(0xFFC6837A)
+                    }
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = color.copy(alpha = 0.15f)
+                    ) {
+                        Text(
+                            text = "Prom. ${"%.1f".format(overall)}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = color,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            subjects.forEach { subject ->
+                val subjectColor = runCatching {
+                    Color(subject.colorHex.toColorInt())
+                }.getOrDefault(MaterialTheme.colorScheme.primary)
+
+                val avgColor = when {
+                    subject.currentAverage == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                    subject.currentAverage >= 14f  -> Color(0xFF91D19A)
+                    subject.currentAverage >= 11f  -> Color(0xFFE2BF55)
+                    else                           -> Color(0xFFC6837A)
+                }
+
+                val isAtRisk = subject.currentAverage != null &&
+                        subject.currentAverage < subject.targetGrade
+
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .clickable { onSubjectClick(subject.id) }
+                        .padding(vertical = 6.dp, horizontal = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(10.dp)
+                            .clip(CircleShape)
+                            .background(subjectColor)
+                    )
+                    Text(
+                        text = subject.name,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface,
+                        modifier = Modifier.weight(1f),
+                        maxLines = 1
+                    )
+                    if (isAtRisk) {
+                        Icon(
+                            Icons.Rounded.Warning,
+                            contentDescription = null,
+                            tint = Color(0xFFC6837A),
+                            modifier = Modifier.size(14.dp)
+                        )
+                    }
+                    Text(
+                        text = if (subject.currentAverage != null)
+                            "%.1f".format(subject.currentAverage)
+                        else "—",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = avgColor
+                    )
+                }
+
+                if (subject != subjects.last()) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 2.dp)
+                    )
                 }
             }
         }
