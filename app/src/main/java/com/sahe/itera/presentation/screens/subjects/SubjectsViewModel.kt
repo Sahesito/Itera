@@ -2,7 +2,9 @@ package com.sahe.itera.presentation.screens.subjects
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sahe.itera.domain.model.ScheduleBlock
 import com.sahe.itera.domain.model.Subject
+import com.sahe.itera.domain.usecase.schedule.InsertScheduleBlockUseCase
 import com.sahe.itera.domain.usecase.subject.DeleteSubjectUseCase
 import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
 import com.sahe.itera.domain.usecase.subject.InsertSubjectUseCase
@@ -15,20 +17,24 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SubjectsViewModel @Inject constructor(
-    private val getSubjects: GetSubjectsUseCase,
+    getSubjects: GetSubjectsUseCase,
     private val insertSubject: InsertSubjectUseCase,
-    private val deleteSubject: DeleteSubjectUseCase
+    private val deleteSubject: DeleteSubjectUseCase,
+    private val insertBlock: InsertScheduleBlockUseCase
 ) : ViewModel() {
 
-    val subjects: StateFlow<List<Subject>> = getSubjects()
-        .stateIn(
-            scope = viewModelScope,
-            started = SharingStarted.WhileSubscribed(5_000),
-            initialValue = emptyList()
-        )
+    val subjects = getSubjects()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun insert(subject: Subject) {
-        viewModelScope.launch { insertSubject(subject) }
+    fun insert(subject: Subject, onInserted: (Long) -> Unit = {}) {
+        viewModelScope.launch {
+            val id = insertSubject(subject)
+            onInserted(id)
+        }
+    }
+
+    fun insertScheduleBlock(block: ScheduleBlock) {
+        viewModelScope.launch { insertBlock(block) }
     }
 
     fun delete(subject: Subject) {

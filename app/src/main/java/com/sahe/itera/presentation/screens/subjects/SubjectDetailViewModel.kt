@@ -2,9 +2,14 @@ package com.sahe.itera.presentation.screens.subjects
 
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.sahe.itera.domain.model.ScheduleBlock
 import com.sahe.itera.domain.model.Subject
 import com.sahe.itera.domain.model.Task
+import com.sahe.itera.domain.usecase.schedule.DeleteScheduleBlockUseCase
+import com.sahe.itera.domain.usecase.schedule.GetScheduleUseCase
+import com.sahe.itera.domain.usecase.schedule.InsertScheduleBlockUseCase
 import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
+import com.sahe.itera.domain.usecase.subject.UpdateSubjectUseCase
 import com.sahe.itera.domain.usecase.task.GetTasksUseCase
 import com.sahe.itera.domain.usecase.task.UpdateTaskUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -19,7 +24,11 @@ import javax.inject.Inject
 class SubjectDetailViewModel @Inject constructor(
     private val getSubjects: GetSubjectsUseCase,
     private val getTasks: GetTasksUseCase,
-    private val updateTask: UpdateTaskUseCase
+    private val updateTask: UpdateTaskUseCase,
+    private val updateSubject: UpdateSubjectUseCase,
+    private val getSchedule: GetScheduleUseCase,
+    private val insertScheduleBlock: InsertScheduleBlockUseCase,
+    private val deleteScheduleBlock: DeleteScheduleBlockUseCase
 ) : ViewModel() {
 
     private val _subject = MutableStateFlow<Subject?>(null)
@@ -28,6 +37,8 @@ class SubjectDetailViewModel @Inject constructor(
     private val _tasks = MutableStateFlow<List<Task>>(emptyList())
     val tasks: StateFlow<List<Task>> = _tasks.asStateFlow()
 
+    private val _scheduleBlocks = MutableStateFlow<List<ScheduleBlock>>(emptyList())
+    val scheduleBlocks: StateFlow<List<ScheduleBlock>> = _scheduleBlocks.asStateFlow()
     fun load(subjectId: Long) {
         viewModelScope.launch {
             getSubjects().map { list -> list.firstOrNull { it.id == subjectId } }
@@ -37,9 +48,27 @@ class SubjectDetailViewModel @Inject constructor(
             getTasks().map { list -> list.filter { it.subjectId == subjectId } }
                 .collect { _tasks.value = it }
         }
+        viewModelScope.launch {
+            getSchedule().map { list -> list.filter { it.subjectId == subjectId } }
+                .collect { _scheduleBlocks.value = it }
+        }
+
+    }
+
+    fun updateColor(colorHex: String) {
+        val current = _subject.value ?: return
+        viewModelScope.launch { updateSubject(current.copy(colorHex = colorHex)) }
     }
 
     fun toggleComplete(task: Task) {
         viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
+    }
+
+    fun insertBlock(block: ScheduleBlock) {
+        viewModelScope.launch { insertScheduleBlock(block) }
+    }
+
+    fun deleteBlock(block: ScheduleBlock) {
+        viewModelScope.launch { deleteScheduleBlock(block) }
     }
 }

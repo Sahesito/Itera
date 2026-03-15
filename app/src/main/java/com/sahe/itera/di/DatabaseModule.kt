@@ -4,12 +4,15 @@ import android.content.Context
 import androidx.room.Room
 import com.sahe.itera.data.database.IteraDatabase
 import com.sahe.itera.data.database.dao.GradeDao
+import com.sahe.itera.data.database.dao.ScheduleBlockDao
 import com.sahe.itera.data.database.dao.SubjectDao
 import com.sahe.itera.data.database.dao.TaskDao
 import com.sahe.itera.domain.repository.GradeRepository
 import com.sahe.itera.data.repositories.GradeRepositoryImpl
+import com.sahe.itera.data.repositories.ScheduleRepositoryImpl
 import com.sahe.itera.data.repositories.SubjectRepositoryImpl
 import com.sahe.itera.data.repositories.TaskRepositoryImpl
+import com.sahe.itera.domain.repository.ScheduleRepository
 import com.sahe.itera.domain.repository.SubjectRepository
 import com.sahe.itera.domain.repository.TaskRepository
 import dagger.Binds
@@ -44,6 +47,8 @@ object DatabaseModule {
 
     @Provides
     fun provideGradeDao(db: IteraDatabase): GradeDao = db.gradeDao()
+    @Provides
+    fun provideScheduleBlockDao(db: IteraDatabase): ScheduleBlockDao = db.scheduleBlockDao()
 }
 
 @Module
@@ -52,7 +57,7 @@ abstract class RepositoryModule {
 
     @Binds
     @Singleton
-    abstract fun bindSubjectRepository( impl: SubjectRepositoryImpl ): SubjectRepository
+    abstract fun bindSubjectRepository(impl: SubjectRepositoryImpl): SubjectRepository
 
     @Binds
     @Singleton
@@ -61,5 +66,10 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindGradeRepository(impl: GradeRepositoryImpl): GradeRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindScheduleRepository(impl: ScheduleRepositoryImpl): ScheduleRepository
 }
+
 
