@@ -28,8 +28,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
 import com.sahe.itera.domain.model.Priority
+import com.sahe.itera.domain.model.ScheduleBlock
 import com.sahe.itera.domain.model.Subject
 import com.sahe.itera.domain.model.Task
+import com.sahe.itera.domain.usecase.schedule.GetScheduleUseCase
 import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
 import com.sahe.itera.domain.usecase.task.GetTasksUseCase
 import com.sahe.itera.domain.usecase.task.UpdateTaskUseCase
@@ -53,7 +55,8 @@ private data class HomeModule(
 class HomeViewModel @Inject constructor(
     getSubjects: GetSubjectsUseCase,
     getTasks: GetTasksUseCase,
-    private val updateTask: UpdateTaskUseCase
+    private val updateTask: UpdateTaskUseCase,
+    getSchedule: GetScheduleUseCase
 ) : ViewModel() {
 
     val hasSubjects = getSubjects()
@@ -72,6 +75,14 @@ class HomeViewModel @Inject constructor(
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
+    val todaySchedule = getSchedule()
+        .map { blocks ->
+            val todayDow = java.time.LocalDate.now().dayOfWeek.value
+            blocks.filter { it.dayOfWeek == todayDow }
+                .sortedBy { it.startHour }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
     fun toggleComplete(task: Task) {
         viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
     }
@@ -82,9 +93,10 @@ fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val hasSubjects by viewModel.hasSubjects.collectAsStateWithLifecycle()
-    val subjects by viewModel.subjects.collectAsStateWithLifecycle()
-    val todayTasks by viewModel.todayTasks.collectAsStateWithLifecycle()
+    val hasSubjects   by viewModel.hasSubjects.collectAsStateWithLifecycle()
+    val subjects      by viewModel.subjects.collectAsStateWithLifecycle()
+    val todayTasks    by viewModel.todayTasks.collectAsStateWithLifecycle()
+    val todaySchedule by viewModel.todaySchedule.collectAsStateWithLifecycle()
 
     val modules = listOf(
         HomeModule("Materias",   Icons.Rounded.School,           "#5685D5", Screen.Subjects.route, true),
@@ -108,7 +120,6 @@ fun HomeScreen(
         verticalArrangement = Arrangement.spacedBy(24.dp),
         contentPadding = PaddingValues(vertical = 24.dp)
     ) {
-        // Header
         item {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 Text(
@@ -149,6 +160,10 @@ fun HomeScreen(
         }
 
         item {
+            HomeTodayScheduleCard(blocks = todaySchedule)
+        }
+
+        item {
             HomeTodaySummaryCard(
                 tasks = todayTasks,
                 onTaskClick = { taskId ->
@@ -158,7 +173,6 @@ fun HomeScreen(
             )
         }
 
-        // Card notas por materia
         if (subjects.isNotEmpty()) {
             item {
                 HomeSubjectsGradeCard(
@@ -167,6 +181,153 @@ fun HomeScreen(
                         navController.navigate(Screen.Notes.createRoute(subjectId))
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
+    val currentHour = remember { java.time.LocalTime.now().hour }
+
+    val currentBlock = blocks.firstOrNull {
+        it.startHour <= currentHour && it.endHour > currentHour
+    }
+    val nextBlock = blocks.firstOrNull {
+        it.startHour > currentHour
+    }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Horario de hoy",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (blocks.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "${blocks.size} clase${if (blocks.size > 1) "s" else ""}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            when {
+                blocks.isEmpty() -> {
+                    Text(
+                        text = "Sin clases hoy.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                currentBlock == null && nextBlock == null -> {
+                    Text(
+                        text = "Ya terminaron todas las clases de hoy.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                else -> {
+                    currentBlock?.let { block ->
+                        val blockColor = runCatching {
+                            Color(block.subjectColor.toColorInt())
+                        }.getOrDefault(MaterialTheme.colorScheme.primary)
+
+                        Surface(
+                            shape = RoundedCornerShape(12.dp),
+                            color = blockColor.copy(alpha = 0.12f)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(12.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .clip(CircleShape)
+                                        .background(blockColor)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "En curso",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = blockColor
+                                    )
+                                    Text(
+                                        text = block.subjectName,
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold,
+                                        color = MaterialTheme.colorScheme.onSurface
+                                    )
+                                }
+                                Text(
+                                    text = "${block.startHour}:00 – ${block.endHour}:00",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = blockColor
+                                )
+                            }
+                        }
+                    }
+
+                    nextBlock?.let { block ->
+                        val blockColor = runCatching {
+                            Color(block.subjectColor.toColorInt())
+                        }.getOrDefault(MaterialTheme.colorScheme.primary)
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            Box(
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .clip(CircleShape)
+                                    .background(blockColor.copy(alpha = 0.5f))
+                            )
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "Próxima clase",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = block.subjectName,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                            Text(
+                                text = "${block.startHour}:00 – ${block.endHour}:00",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
             }
         }
     }
@@ -189,9 +350,7 @@ private fun HomeModuleItem(module: HomeModule, onClick: () -> Unit) {
                 else Modifier
             ),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
