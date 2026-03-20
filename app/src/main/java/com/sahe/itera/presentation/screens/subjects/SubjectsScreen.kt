@@ -23,6 +23,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.core.graphics.toColorInt
@@ -31,16 +32,10 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.navigation.NavController
 import com.sahe.itera.domain.model.ScheduleBlock
 import com.sahe.itera.domain.model.Subject
-import com.sahe.itera.presentation.navigation.Screen
-import com.sahe.itera.presentation.theme.*
 import com.sahe.itera.presentation.components.DaySchedule
 import com.sahe.itera.presentation.components.DayTimeRow
-
-private data class DaySchedule(
-    val startHour: Int = 7,  val startMin: Int = 0,
-    val endHour: Int   = 8,  val endMin: Int   = 0
-)
-
+import com.sahe.itera.presentation.navigation.Screen
+import com.sahe.itera.presentation.theme.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -117,9 +112,15 @@ fun SubjectsScreen(
     if (showDialog) {
         AddSubjectDialog(
             onDismiss = { showDialog = false },
-            onConfirm = { name, color, teacher, schedule ->
+            onConfirm = { name, color, teacher, maxAbsences, maxTardiness, schedule ->
                 viewModel.insert(
-                    subject = Subject(name = name, colorHex = color, teacher = teacher),
+                    subject = Subject(
+                        name         = name,
+                        colorHex     = color,
+                        teacher      = teacher,
+                        maxAbsences  = maxAbsences,
+                        maxTardiness = maxTardiness
+                    ),
                     onInserted = { subjectId ->
                         schedule.forEach { (dow, times) ->
                             viewModel.insertScheduleBlock(
@@ -247,7 +248,14 @@ private fun EmptySubjectsPlaceholder() {
 @Composable
 private fun AddSubjectDialog(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, color: String, teacher: String, schedule: List<Pair<Int, Pair<Int, Int>>>) -> Unit
+    onConfirm: (
+        name: String,
+        color: String,
+        teacher: String,
+        maxAbsences: Int,
+        maxTardiness: Int,
+        schedule: List<Pair<Int, Pair<Int, Int>>>
+    ) -> Unit
 ) {
     val palette = listOf(
         "#B71C1C","#C62828","#D32F2F","#E53935","#F44336",
@@ -270,13 +278,17 @@ private fun AddSubjectDialog(
 
     var name          by remember { mutableStateOf("") }
     var teacher       by remember { mutableStateOf("") }
+    var maxAbsences   by remember { mutableStateOf("") }
+    var maxTardiness  by remember { mutableStateOf("") }
     var selectedColor by remember { mutableStateOf(palette.random()) }
     var showPalette   by remember { mutableStateOf(false) }
-
-    var scheduleMap by remember { mutableStateOf<Map<Int, DaySchedule>>(emptyMap()) }
+    var scheduleMap   by remember { mutableStateOf<Map<Int, DaySchedule>>(emptyMap()) }
 
     val days      = listOf("L","M","X","J","V","S","D")
     val dayLabels = listOf("Lunes","Martes","Miércoles","Jueves","Viernes","Sábado","Domingo")
+    val accentColor = runCatching {
+        Color(selectedColor.toColorInt())
+    }.getOrDefault(MaterialTheme.colorScheme.primary)
 
     if (showPalette) {
         ModalBottomSheet(
@@ -358,6 +370,33 @@ private fun AddSubjectDialog(
                     }
                 )
 
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    OutlinedTextField(
+                        value = maxAbsences,
+                        onValueChange = { maxAbsences = it.filter { c -> c.isDigit() } },
+                        label = { Text("Máx. faltas") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            Icon(Icons.Rounded.EventBusy, null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                    OutlinedTextField(
+                        value = maxTardiness,
+                        onValueChange = { maxTardiness = it.filter { c -> c.isDigit() } },
+                        label = { Text("Máx. tardanzas") },
+                        singleLine = true,
+                        shape = RoundedCornerShape(16.dp),
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.weight(1f),
+                        leadingIcon = {
+                            Icon(Icons.Rounded.AccessTime, null, modifier = Modifier.size(18.dp))
+                        }
+                    )
+                }
+
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(12.dp),
@@ -371,10 +410,7 @@ private fun AddSubjectDialog(
                         modifier = Modifier
                             .size(32.dp)
                             .clip(CircleShape)
-                            .background(
-                                runCatching { Color(selectedColor.toColorInt()) }
-                                    .getOrDefault(Color.Gray)
-                            )
+                            .background(accentColor)
                     )
                     Column(modifier = Modifier.weight(1f)) {
                         Text("Color seleccionado",
@@ -395,10 +431,6 @@ private fun AddSubjectDialog(
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
 
-                val accentColor = runCatching {
-                    Color(selectedColor.toColorInt())
-                }.getOrDefault(MaterialTheme.colorScheme.primary)
-
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier.fillMaxWidth()
@@ -413,11 +445,8 @@ private fun AddSubjectDialog(
                             modifier = Modifier
                                 .weight(1f)
                                 .clickable {
-                                    scheduleMap = if (isSelected) {
-                                        scheduleMap - dow
-                                    } else {
-                                        scheduleMap + (dow to DaySchedule())
-                                    }
+                                    scheduleMap = if (isSelected) scheduleMap - dow
+                                    else scheduleMap + (dow to DaySchedule())
                                 }
                         ) {
                             Text(
@@ -438,9 +467,7 @@ private fun AddSubjectDialog(
                         label = dayLabels[dow - 1],
                         schedule = sched,
                         accentColor = accentColor,
-                        onChanged = { updated ->
-                            scheduleMap = scheduleMap + (dow to updated)
-                        }
+                        onChanged = { updated -> scheduleMap = scheduleMap + (dow to updated) }
                     )
                 }
             }
@@ -452,7 +479,14 @@ private fun AddSubjectDialog(
                         val schedule = scheduleMap.entries.map { (dow, sched) ->
                             dow to (sched.startHour to sched.endHour)
                         }
-                        onConfirm(name.trim(), selectedColor, teacher.trim(), schedule)
+                        onConfirm(
+                            name.trim(),
+                            selectedColor,
+                            teacher.trim(),
+                            maxAbsences.toIntOrNull() ?: 0,
+                            maxTardiness.toIntOrNull() ?: 0,
+                            schedule
+                        )
                     }
                 },
                 enabled = name.isNotBlank()
@@ -463,4 +497,3 @@ private fun AddSubjectDialog(
         }
     )
 }
-

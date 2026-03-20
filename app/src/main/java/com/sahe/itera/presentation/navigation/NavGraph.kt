@@ -12,6 +12,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.navArgument
 import com.sahe.itera.presentation.schedule.ScheduleScreen
+import com.sahe.itera.presentation.screens.attendance.AttendanceScreen
 import com.sahe.itera.presentation.screens.grades.GradesScreen
 //import com.sahe.itera.presentation.screens.grades.GradesScreen
 import com.sahe.itera.presentation.screens.home.HomeScreen
@@ -92,7 +93,7 @@ fun IteraNavGraph(navController: NavHostController) {
         }
 
         composable(Screen.Calendar.route) {
-            PlaceholderScreen("Calendario") { navController.safePopBackStack() }
+            AttendanceScreen(onBack = { navController.safePopBackStack() })
         }
 
         composable(Screen.Settings.route) {

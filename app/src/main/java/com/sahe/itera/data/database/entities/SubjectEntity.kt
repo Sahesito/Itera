@@ -12,5 +12,7 @@ data class SubjectEntity(
     val credits: Int,
     val targetGrade: Float,
     val currentAverage: Float?,
-    val teacher: String = ""
+    val teacher: String = "",
+    val maxAbsences: Int = 0,
+    val maxTardiness: Int = 0
 )

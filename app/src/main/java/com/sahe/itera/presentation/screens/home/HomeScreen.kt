@@ -86,6 +86,14 @@ class HomeViewModel @Inject constructor(
     fun toggleComplete(task: Task) {
         viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
     }
+
+    val tomorrowSchedule = getSchedule()
+        .map { blocks ->
+            val tomorrowDow = java.time.LocalDate.now().plusDays(1).dayOfWeek.value
+            blocks.filter { it.dayOfWeek == tomorrowDow }
+                .sortedBy { it.startHour }
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 @Composable
@@ -97,12 +105,13 @@ fun HomeScreen(
     val subjects      by viewModel.subjects.collectAsStateWithLifecycle()
     val todayTasks    by viewModel.todayTasks.collectAsStateWithLifecycle()
     val todaySchedule by viewModel.todaySchedule.collectAsStateWithLifecycle()
+    val tomorrowSchedule by viewModel.tomorrowSchedule.collectAsStateWithLifecycle()
 
     val modules = listOf(
         HomeModule("Materias",   Icons.Rounded.School,           "#5685D5", Screen.Subjects.route, true),
         HomeModule("Tareas",     Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,    hasSubjects),
         HomeModule("Horario",    Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route, true),
-        HomeModule("Calendario", Icons.Rounded.CalendarMonth,    "#E2BF55", Screen.Calendar.route, true),
+        HomeModule("Asistencia", Icons.Rounded.EventNote, "#E2BF55", Screen.Calendar.route, hasSubjects),
         HomeModule("Notas",      Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,    true),
         HomeModule("Ajustes",    Icons.Rounded.Settings,         "#78909C", Screen.Settings.route, true),
     )
@@ -160,7 +169,11 @@ fun HomeScreen(
         }
 
         item {
-            HomeTodayScheduleCard(blocks = todaySchedule)
+            HomeTodayScheduleCard(
+                todayBlocks    = todaySchedule,
+                tomorrowBlocks = tomorrowSchedule,
+                onScheduleClick = { navController.navigate(Screen.Schedule.route) }
+            )
         }
 
         item {
@@ -187,13 +200,17 @@ fun HomeScreen(
 }
 
 @Composable
-private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
+private fun HomeTodayScheduleCard(
+    todayBlocks: List<ScheduleBlock>,
+    tomorrowBlocks: List<ScheduleBlock>,
+    onScheduleClick: () -> Unit
+) {
     val currentHour = remember { java.time.LocalTime.now().hour }
 
-    val currentBlock = blocks.firstOrNull {
+    val currentBlock = todayBlocks.firstOrNull {
         it.startHour <= currentHour && it.endHour > currentHour
     }
-    val nextBlock = blocks.firstOrNull {
+    val nextBlock = todayBlocks.firstOrNull {
         it.startHour > currentHour
     }
 
@@ -217,13 +234,14 @@ private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
                     style = MaterialTheme.typography.titleMedium,
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                if (blocks.isNotEmpty()) {
+                if (todayBlocks.isNotEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.clickable { onScheduleClick() }
                     ) {
                         Text(
-                            text = "${blocks.size} clase${if (blocks.size > 1) "s" else ""}",
+                            text = "${todayBlocks.size} clase${if (todayBlocks.size > 1) "s" else ""}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
                             modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
@@ -233,7 +251,7 @@ private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
             }
 
             when {
-                blocks.isEmpty() -> {
+                todayBlocks.isEmpty() -> {
                     Text(
                         text = "Sin clases hoy.",
                         style = MaterialTheme.typography.bodyMedium,
@@ -258,36 +276,18 @@ private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
                             color = blockColor.copy(alpha = 0.12f)
                         ) {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(12.dp),
+                                modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(10.dp)
-                                        .clip(CircleShape)
-                                        .background(blockColor)
-                                )
+                                Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(blockColor))
                                 Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "En curso",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = blockColor
-                                    )
-                                    Text(
-                                        text = block.subjectName,
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.SemiBold,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
+                                    Text("En curso", style = MaterialTheme.typography.labelSmall, color = blockColor)
+                                    Text(block.subjectName, style = MaterialTheme.typography.bodyMedium,
+                                        fontWeight = FontWeight.SemiBold, color = MaterialTheme.colorScheme.onSurface)
                                 }
-                                Text(
-                                    text = "${block.startHour}:00 – ${block.endHour}:00",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = blockColor
-                                )
+                                Text("${block.startHour}:00 – ${block.endHour}:00",
+                                    style = MaterialTheme.typography.labelMedium, color = blockColor)
                             }
                         }
                     }
@@ -302,30 +302,66 @@ private fun HomeTodayScheduleCard(blocks: List<ScheduleBlock>) {
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(10.dp)
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .clip(CircleShape)
-                                    .background(blockColor.copy(alpha = 0.5f))
-                            )
+                            Box(modifier = Modifier.size(10.dp).clip(CircleShape)
+                                .background(blockColor.copy(alpha = 0.5f)))
                             Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = "Próxima clase",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = block.subjectName,
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurface
-                                )
+                                Text("Próxima clase", style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text(block.subjectName, style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface)
                             }
-                            Text(
-                                text = "${block.startHour}:00 – ${block.endHour}:00",
+                            Text("${block.startHour}:00 – ${block.endHour}:00",
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                                color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
+                    }
+                }
+            }
+
+            if (tomorrowBlocks.isNotEmpty()) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+
+                Text(
+                    text = "Mañana",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontWeight = FontWeight.SemiBold
+                )
+
+                tomorrowBlocks.forEach { block ->
+                    val blockColor = runCatching {
+                        Color(block.subjectColor.toColorInt())
+                    }.getOrDefault(MaterialTheme.colorScheme.primary)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(CircleShape)
+                                .background(blockColor.copy(alpha = 0.6f))
+                        )
+                        Text(
+                            text = block.subjectName,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
+                            modifier = Modifier.weight(1f)
+                        )
+                        Text(
+                            text = "${block.startHour}:00 – ${block.endHour}:00",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    if (block != tomorrowBlocks.last()) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            modifier = Modifier.padding(vertical = 2.dp)
+                        )
                     }
                 }
             }

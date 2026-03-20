@@ -3,15 +3,18 @@ package com.sahe.itera.di
 import android.content.Context
 import androidx.room.Room
 import com.sahe.itera.data.database.IteraDatabase
+import com.sahe.itera.data.database.dao.AttendanceDao
 import com.sahe.itera.data.database.dao.GradeDao
 import com.sahe.itera.data.database.dao.ScheduleBlockDao
 import com.sahe.itera.data.database.dao.SubjectDao
 import com.sahe.itera.data.database.dao.TaskDao
+import com.sahe.itera.data.repositories.AttendanceRepositoryImpl
 import com.sahe.itera.domain.repository.GradeRepository
 import com.sahe.itera.data.repositories.GradeRepositoryImpl
 import com.sahe.itera.data.repositories.ScheduleRepositoryImpl
 import com.sahe.itera.data.repositories.SubjectRepositoryImpl
 import com.sahe.itera.data.repositories.TaskRepositoryImpl
+import com.sahe.itera.domain.repository.AttendanceRepository
 import com.sahe.itera.domain.repository.ScheduleRepository
 import com.sahe.itera.domain.repository.SubjectRepository
 import com.sahe.itera.domain.repository.TaskRepository
@@ -40,15 +43,14 @@ object DatabaseModule {
 
     @Provides
     fun provideSubjectDao(db: IteraDatabase): SubjectDao = db.subjectDao()
-
-
     @Provides
     fun provideTaskDao(db: IteraDatabase): TaskDao = db.taskDao()
-
     @Provides
     fun provideGradeDao(db: IteraDatabase): GradeDao = db.gradeDao()
     @Provides
     fun provideScheduleBlockDao(db: IteraDatabase): ScheduleBlockDao = db.scheduleBlockDao()
+    @Provides
+    fun provideAttendanceDao(db: IteraDatabase): AttendanceDao = db.attendanceDao()
 }
 
 @Module
@@ -70,6 +72,11 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindScheduleRepository(impl: ScheduleRepositoryImpl): ScheduleRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindAttendanceRepository(impl: AttendanceRepositoryImpl): AttendanceRepository
+
 }
 
 
