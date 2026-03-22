@@ -24,5 +24,6 @@ data class TaskEntity(
     val dueDateTime: Long?,
     val isCompleted: Boolean,
     val hasReminder: Boolean,
-    val priority: String = "NORMAL"
+    val priority: String = "NORMAL",
+    val isExam: Boolean = false
 )

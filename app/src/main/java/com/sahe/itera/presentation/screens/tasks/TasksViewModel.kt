@@ -15,7 +15,7 @@ enum class TaskFilter { ALL, PENDING, COMPLETED }
 
 @HiltViewModel
 class TasksViewModel @Inject constructor(
-    private val getTasks: GetTasksUseCase,
+    getTasks: GetTasksUseCase,
     private val insertTask: InsertTaskUseCase,
     private val updateTask: UpdateTaskUseCase,
     private val deleteTask: DeleteTaskUseCase,
@@ -25,20 +25,37 @@ class TasksViewModel @Inject constructor(
 
     val subjects = getSubjects()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-    private val _filter = MutableStateFlow(TaskFilter.ALL)
-    val filter: StateFlow<TaskFilter> = _filter.asStateFlow()
 
-    val tasks: StateFlow<List<Task>> = combine(
-        getTasks(), _filter
-    ) { list, filter ->
-        when (filter) {
-            TaskFilter.ALL       -> list
-            TaskFilter.PENDING   -> list.filter { !it.isCompleted }
-            TaskFilter.COMPLETED -> list.filter { it.isCompleted }
+    private val _taskFilter = MutableStateFlow(TaskFilter.ALL)
+    private val _examFilter = MutableStateFlow(TaskFilter.ALL)
+
+    val taskFilter: StateFlow<TaskFilter> = _taskFilter.asStateFlow()
+    val examFilter: StateFlow<TaskFilter> = _examFilter.asStateFlow()
+
+    val filter: StateFlow<TaskFilter> = _taskFilter
+
+    val tasks: StateFlow<List<Task>> = combine(getTasks(), _taskFilter) { list, filter ->
+        list.filter { !it.isExam }.let { tasks ->
+            when (filter) {
+                TaskFilter.ALL       -> tasks
+                TaskFilter.PENDING   -> tasks.filter { !it.isCompleted }
+                TaskFilter.COMPLETED -> tasks.filter { it.isCompleted }
+            }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    fun setFilter(f: TaskFilter) { _filter.value = f }
+    val exams: StateFlow<List<Task>> = combine(getTasks(), _examFilter) { list, filter ->
+        list.filter { it.isExam }.let { exams ->
+            when (filter) {
+                TaskFilter.ALL       -> exams.sortedBy { it.dueDateTime }
+                TaskFilter.PENDING   -> exams.filter { !it.isCompleted }.sortedBy { it.dueDateTime }
+                TaskFilter.COMPLETED -> exams.filter { it.isCompleted }.sortedByDescending { it.dueDateTime }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun setTaskFilter(f: TaskFilter) { _taskFilter.value = f }
+    fun setExamFilter(f: TaskFilter) { _examFilter.value = f }
 
     fun insert(task: Task) {
         viewModelScope.launch {

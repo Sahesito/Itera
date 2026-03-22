@@ -20,7 +20,8 @@ fun TaskWithSubject.toDomain() = Task(
     },
     isCompleted   = isCompleted,
     hasReminder   = hasReminder,
-    priority      = runCatching { Priority.valueOf(priority) }.getOrDefault(Priority.NORMAL)
+    priority      = runCatching { Priority.valueOf(priority) }.getOrDefault(Priority.NORMAL),
+    isExam        = isExam
 )
 
 fun Task.toEntity() = TaskEntity(
@@ -31,5 +32,6 @@ fun Task.toEntity() = TaskEntity(
     dueDateTime = dueDateTime?.atZone(ZoneId.systemDefault())?.toInstant()?.toEpochMilli(),
     isCompleted = isCompleted,
     hasReminder = hasReminder,
-    priority    = priority.name
+    priority    = priority.name,
+    isExam      = isExam
 )

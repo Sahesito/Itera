@@ -36,6 +36,7 @@ import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
 import com.sahe.itera.domain.usecase.task.GetTasksUseCase
 import com.sahe.itera.domain.usecase.task.UpdateTaskUseCase
 import com.sahe.itera.presentation.navigation.Screen
+import com.sahe.itera.presentation.screens.settings.motivationalQuotes
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
@@ -94,6 +95,14 @@ class HomeViewModel @Inject constructor(
                 .sortedBy { it.startHour }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val upcomingExams = getTasks()
+        .map { tasks ->
+            tasks.filter { it.isExam && !it.isCompleted }
+                .sortedBy { it.dueDateTime }
+                .take(5)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 }
 
 @Composable
@@ -106,14 +115,15 @@ fun HomeScreen(
     val todayTasks    by viewModel.todayTasks.collectAsStateWithLifecycle()
     val todaySchedule by viewModel.todaySchedule.collectAsStateWithLifecycle()
     val tomorrowSchedule by viewModel.tomorrowSchedule.collectAsStateWithLifecycle()
+    val upcomingExams by viewModel.upcomingExams.collectAsStateWithLifecycle()
 
     val modules = listOf(
-        HomeModule("Materias",   Icons.Rounded.School,           "#5685D5", Screen.Subjects.route, true),
-        HomeModule("Tareas",     Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,    hasSubjects),
-        HomeModule("Horario",    Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route, true),
-        HomeModule("Asistencia", Icons.Rounded.EventNote, "#E2BF55", Screen.Calendar.route, hasSubjects),
-        HomeModule("Notas",      Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,    true),
-        HomeModule("Ajustes",    Icons.Rounded.Settings,         "#78909C", Screen.Settings.route, true),
+        HomeModule("Materias",    Icons.Rounded.School,           "#5685D5", Screen.Subjects.route,  true),
+        HomeModule("Agenda",      Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,     hasSubjects),
+        HomeModule("Horario",     Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route,  true),
+        HomeModule("Asistencia",  Icons.Rounded.EventNote,        "#E2BF55", Screen.Calendar.route,  hasSubjects),
+        HomeModule("Notas",       Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,     hasSubjects),
+        HomeModule("Ajustes",     Icons.Rounded.Settings,         "#78909C", Screen.Settings.route,  true),
     )
 
     val today = remember {
@@ -122,78 +132,97 @@ fun HomeScreen(
             .replaceFirstChar { it.uppercase() }
     }
 
-    LazyColumn(
+    Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 20.dp),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
-        contentPadding = PaddingValues(vertical = 24.dp)
+            .background(MaterialTheme.colorScheme.background)
     ) {
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                Text(
-                    text = "Itera",
-                    style = MaterialTheme.typography.headlineLarge,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = today,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 20.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp),
+            contentPadding = PaddingValues(vertical = 24.dp)
+        ) {
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(
+                        text = "Itera",
+                        style = MaterialTheme.typography.headlineLarge,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    Text(
+                        text = today,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
-        }
 
-        item {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text(
-                    text = "Módulos",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                LazyVerticalGrid(
-                    columns = GridCells.Fixed(3),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                    modifier = Modifier.heightIn(max = 400.dp),
-                    userScrollEnabled = false
-                ) {
-                    items(modules) { module ->
-                        HomeModuleItem(
-                            module = module,
-                            onClick = { navController.navigate(module.route) }
-                        )
+            item {
+                HomeMotivationalCard()
+            }
+
+            item {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = "Módulos",
+                        style = MaterialTheme.typography.titleMedium,
+                        color = MaterialTheme.colorScheme.onBackground
+                    )
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(3),
+                        horizontalArrangement = Arrangement.spacedBy(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp),
+                        modifier = Modifier.heightIn(max = 400.dp),
+                        userScrollEnabled = false
+                    ) {
+                        items(modules) { module ->
+                            HomeModuleItem(
+                                module = module,
+                                onClick = { navController.navigate(module.route) }
+                            )
+                        }
                     }
                 }
             }
-        }
 
-        item {
-            HomeTodayScheduleCard(
-                todayBlocks    = todaySchedule,
-                tomorrowBlocks = tomorrowSchedule,
-                onScheduleClick = { navController.navigate(Screen.Schedule.route) }
-            )
-        }
-
-        item {
-            HomeTodaySummaryCard(
-                tasks = todayTasks,
-                onTaskClick = { taskId ->
-                    navController.navigate(Screen.TaskDetail.createRoute(taskId))
-                },
-                onToggle = { task -> viewModel.toggleComplete(task) }
-            )
-        }
-
-        if (subjects.isNotEmpty()) {
             item {
-                HomeSubjectsGradeCard(
-                    subjects = subjects,
-                    onSubjectClick = { subjectId ->
-                        navController.navigate(Screen.Notes.createRoute(subjectId))
+                HomeTodayScheduleCard(
+                    todayBlocks    = todaySchedule,
+                    tomorrowBlocks = tomorrowSchedule,
+                    onScheduleClick = { navController.navigate(Screen.Schedule.route) }
+                )
+            }
+
+            item {
+                HomeTodaySummaryCard(
+                    tasks = todayTasks,
+                    onTaskClick = { taskId ->
+                        navController.navigate(Screen.TaskDetail.createRoute(taskId))
+                    },
+                    onToggle = { task -> viewModel.toggleComplete(task) }
+                )
+            }
+
+            item {
+                HomeUpcomingExamsCard(
+                    exams = upcomingExams,
+                    onExamClick = { taskId ->
+                        navController.navigate(Screen.TaskDetail.createRoute(taskId))
                     }
                 )
+            }
+
+            if (subjects.isNotEmpty()) {
+                item {
+                    HomeSubjectsGradeCard(
+                        subjects = subjects,
+                        onSubjectClick = { subjectId ->
+                            navController.navigate(Screen.Notes.createRoute(subjectId))
+                        }
+                    )
+                }
             }
         }
     }
@@ -662,6 +691,161 @@ private fun HomeSubjectsGradeCard(
                     )
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun HomeUpcomingExamsCard(
+    exams: List<Task>,
+    onExamClick: (Long) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Próximos exámenes",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                if (exams.isNotEmpty()) {
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF5685D5).copy(alpha = 0.12f)
+                    ) {
+                        Text(
+                            text = "${exams.size}",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF5685D5),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+
+            if (exams.isEmpty()) {
+                Text(
+                    text = "Sin exámenes próximos.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                exams.forEach { exam ->
+                    val subjectColor = exam.subjectColor?.let {
+                        runCatching { Color(it.toColorInt()) }.getOrNull()
+                    }
+                    val daysLeft = exam.dueDateTime?.let {
+                        java.time.temporal.ChronoUnit.DAYS.between(
+                            java.time.LocalDate.now(), it.toLocalDate()
+                        )
+                    }
+                    val daysColor = when {
+                        daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        daysLeft <= 1L   -> Color(0xFFC6837A)
+                        daysLeft <= 3L   -> Color(0xFFE2BF55)
+                        else             -> Color(0xFF91D19A)
+                    }
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable { onExamClick(exam.id) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .clip(CircleShape)
+                                .background(subjectColor ?: MaterialTheme.colorScheme.primary)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = exam.title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1
+                            )
+                            exam.subjectName?.let {
+                                Text(
+                                    text = it,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        daysLeft?.let {
+                            Surface(
+                                shape = RoundedCornerShape(6.dp),
+                                color = daysColor.copy(alpha = 0.15f)
+                            ) {
+                                Text(
+                                    text = when (daysLeft) {
+                                        0L   -> "Hoy"
+                                        1L   -> "Mañana"
+                                        else -> "En $daysLeft días"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = daysColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (exam != exams.last()) {
+                        HorizontalDivider(
+                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeMotivationalCard() {
+    val quote = remember { motivationalQuotes.random() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)
+        ),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.Top
+        ) {
+            Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp).padding(top = 2.dp)
+            )
+            Text(
+                text = "\"$quote\"",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
+            )
         }
     }
 }

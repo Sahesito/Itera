@@ -10,5 +10,6 @@ data class TaskWithSubject(
     val hasReminder: Boolean,
     val subjectName: String?,
     val subjectColor: String?,
-    val priority: String = "NORMAL"
+    val priority: String = "NORMAL",
+    val isExam: Boolean = false
 )

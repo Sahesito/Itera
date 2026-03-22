@@ -2,7 +2,6 @@ package com.sahe.itera
 
 import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
-
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import javax.inject.Inject

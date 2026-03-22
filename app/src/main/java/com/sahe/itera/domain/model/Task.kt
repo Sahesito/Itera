@@ -12,5 +12,6 @@ data class Task(
     val dueDateTime: LocalDateTime? = null,
     val isCompleted: Boolean = false,
     val hasReminder: Boolean = false,
-    val priority: Priority = Priority.NORMAL
+    val priority: Priority = Priority.NORMAL,
+    val isExam: Boolean = false
 )

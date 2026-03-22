@@ -21,7 +21,7 @@ import com.sahe.itera.data.database.entities.TaskEntity
         ScheduleBlockEntity::class,
         AttendanceEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class IteraDatabase : RoomDatabase() {

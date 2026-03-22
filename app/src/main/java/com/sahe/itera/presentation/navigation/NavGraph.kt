@@ -16,6 +16,7 @@ import com.sahe.itera.presentation.screens.attendance.AttendanceScreen
 import com.sahe.itera.presentation.screens.grades.GradesScreen
 //import com.sahe.itera.presentation.screens.grades.GradesScreen
 import com.sahe.itera.presentation.screens.home.HomeScreen
+import com.sahe.itera.presentation.screens.settings.SettingsScreen
 import com.sahe.itera.presentation.screens.subjects.SubjectDetailScreen
 import com.sahe.itera.presentation.screens.subjects.SubjectsScreen
 import com.sahe.itera.presentation.screens.tasks.TaskDetailScreen
@@ -97,7 +98,7 @@ fun IteraNavGraph(navController: NavHostController) {
         }
 
         composable(Screen.Settings.route) {
-            PlaceholderScreen("Ajustes") { navController.safePopBackStack() }
+            SettingsScreen(onBack = { navController.safePopBackStack() })
         }
     }
 }
