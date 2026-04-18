@@ -441,7 +441,7 @@ private fun WeightSetupStep(subject: Subject,
                     OutlinedTextField(
                         value = maxScores[i].value,
                         onValueChange = { maxScores[i].value = it.filter { c -> c.isDigit() } },
-                        label = { Text("Escala") },
+                        label = { Text("Nota máx.") },
                         singleLine = true,
                         shape = RoundedCornerShape(14.dp),
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
@@ -642,7 +642,7 @@ private fun ScoreCard(grade: Grade, onScoreChange: (Float?) -> Unit) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(grade.name, style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium, color = MaterialTheme.colorScheme.onSurface)
-                Text("Peso: ${grade.weight.toInt()}%  ·  Escala: 0–${grade.maxScore.toInt()}",
+                Text("Peso: ${grade.weight.toInt()}%  ·  Máx: 0–${grade.maxScore.toInt()}",
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant)
             }

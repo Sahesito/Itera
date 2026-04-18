@@ -16,6 +16,9 @@ class SubjectRepositoryImpl @Inject constructor(
     override fun getSubjects(): Flow<List<Subject>> =
         dao.getSubjects().map { list -> list.map { it.toDomain() } }
 
+    override fun getArchivedSubjects(): Flow<List<Subject>> =
+        dao.getArchivedSubjects().map { list -> list.map { it.toDomain() } }
+
     override suspend fun getSubjectById(id: Long): Subject? =
         dao.getSubjectById(id)?.toDomain()
 
@@ -27,4 +30,7 @@ class SubjectRepositoryImpl @Inject constructor(
 
     override suspend fun deleteSubject(subject: Subject) =
         dao.deleteSubject(subject.toEntity())
+
+    override suspend fun deleteExpiredArchived(cutoff: Long) =
+        dao.deleteExpiredArchived(cutoff)
 }

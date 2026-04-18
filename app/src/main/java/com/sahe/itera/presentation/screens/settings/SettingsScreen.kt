@@ -26,9 +26,6 @@ fun SettingsScreen(
     val darkTheme       by viewModel.darkTheme.collectAsStateWithLifecycle()
     val notificationsOn by viewModel.notificationsOn.collectAsStateWithLifecycle()
 
-    val quote = remember {
-        motivationalQuotes.random()
-    }
 
     Scaffold(
         topBar = {
@@ -62,35 +59,7 @@ fun SettingsScreen(
                 ),
                 elevation = CardDefaults.cardElevation(0.dp)
             ) {
-                Column(
-                    modifier = Modifier.padding(20.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        Icon(
-                            Icons.Rounded.AutoAwesome,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = "Frase del día",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.primary,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                    Text(
-                        text = "\"$quote\"",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        fontStyle = FontStyle.Italic,
-                        textAlign = TextAlign.Start
-                    )
-                }
+
             }
 
             SettingsSectionHeader("Apariencia")
@@ -116,7 +85,7 @@ fun SettingsScreen(
             Spacer(Modifier.weight(1f))
 
             Text(
-                text = "Itera v1.0",
+                text = "Itera v1.0.1",
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier

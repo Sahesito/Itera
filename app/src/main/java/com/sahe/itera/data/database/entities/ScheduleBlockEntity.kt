@@ -21,5 +21,6 @@ data class ScheduleBlockEntity(
     val subjectId: Long,
     val dayOfWeek: Int,
     val startHour: Int,
-    val endHour: Int
+    val endHour: Int,
+    val classroom: String = ""
 )

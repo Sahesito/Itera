@@ -320,7 +320,6 @@ private fun EditTaskDialog(
         is24Hour = true
     )
 
-    // Date picker
     if (showDatePicker) {
         DatePickerDialog(
             onDismissRequest = { showDatePicker = false },
@@ -328,7 +327,7 @@ private fun EditTaskDialog(
                 TextButton(onClick = {
                     datePickerState.selectedDateMillis?.let { millis ->
                         val date = java.time.Instant.ofEpochMilli(millis)
-                            .atZone(java.time.ZoneId.systemDefault()).toLocalDate()
+                            .atOffset(java.time.ZoneOffset.UTC).toLocalDate()
                         selectedDateTime = date.atTime(
                             selectedDateTime?.hour ?: 23,
                             selectedDateTime?.minute ?: 59

@@ -14,5 +14,7 @@ data class SubjectEntity(
     val currentAverage: Float?,
     val teacher: String = "",
     val maxAbsences: Int = 0,
-    val maxTardiness: Int = 0
+    val maxTardiness: Int = 0,
+    val isArchived: Boolean = false,
+    val archivedAt: Long? = null
 )

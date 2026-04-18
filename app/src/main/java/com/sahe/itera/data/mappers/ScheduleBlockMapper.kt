@@ -13,7 +13,8 @@ fun ScheduleBlockEntity.toDomain(
     subjectColor = subjectColor,
     dayOfWeek    = dayOfWeek,
     startHour    = startHour,
-    endHour      = endHour
+    endHour      = endHour,
+    classroom    = classroom
 )
 
 fun ScheduleBlock.toEntity() = ScheduleBlockEntity(
@@ -21,5 +22,6 @@ fun ScheduleBlock.toEntity() = ScheduleBlockEntity(
     subjectId = subjectId,
     dayOfWeek = dayOfWeek,
     startHour = startHour,
-    endHour   = endHour
+    endHour   = endHour,
+    classroom = classroom
 )

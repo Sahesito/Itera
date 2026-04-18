@@ -11,9 +11,10 @@ fun SubjectEntity.toDomain() = Subject(
     credits        = credits,
     targetGrade    = targetGrade,
     currentAverage = currentAverage,
-    maxAbsences  = maxAbsences,
-    maxTardiness = maxTardiness
-
+    maxAbsences    = maxAbsences,
+    maxTardiness   = maxTardiness,
+    isArchived     = isArchived,
+    archivedAt     = archivedAt
 )
 
 fun Subject.toEntity() = SubjectEntity(
@@ -24,6 +25,8 @@ fun Subject.toEntity() = SubjectEntity(
     credits        = credits,
     targetGrade    = targetGrade,
     currentAverage = currentAverage,
-    maxAbsences  = maxAbsences,
-    maxTardiness = maxTardiness
+    maxAbsences    = maxAbsences,
+    maxTardiness   = maxTardiness,
+    isArchived     = isArchived,
+    archivedAt     = archivedAt
 )

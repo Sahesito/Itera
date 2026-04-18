@@ -5,8 +5,10 @@ import kotlinx.coroutines.flow.Flow
 
 interface SubjectRepository {
     fun getSubjects(): Flow<List<Subject>>
+    fun getArchivedSubjects(): Flow<List<Subject>>
     suspend fun getSubjectById(id: Long): Subject?
     suspend fun insertSubject(subject: Subject): Long
     suspend fun updateSubject(subject: Subject)
     suspend fun deleteSubject(subject: Subject)
+    suspend fun deleteExpiredArchived(cutoff: Long)
 }

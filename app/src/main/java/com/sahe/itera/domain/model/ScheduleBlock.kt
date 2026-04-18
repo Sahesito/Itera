@@ -7,5 +7,6 @@ data class ScheduleBlock(
     val subjectColor: String = "",
     val dayOfWeek: Int,
     val startHour: Int,
-    val endHour: Int
+    val endHour: Int,
+    val classroom: String = ""
 )

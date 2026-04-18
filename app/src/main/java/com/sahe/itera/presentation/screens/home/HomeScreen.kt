@@ -27,10 +27,15 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.NavController
+import com.sahe.itera.domain.model.ChecklistItem
+import com.sahe.itera.domain.model.Exposition
 import com.sahe.itera.domain.model.Priority
 import com.sahe.itera.domain.model.ScheduleBlock
 import com.sahe.itera.domain.model.Subject
 import com.sahe.itera.domain.model.Task
+import com.sahe.itera.domain.usecase.checklist.GetChecklistUseCase
+import com.sahe.itera.domain.usecase.checklist.UpdateChecklistItemUseCase
+import com.sahe.itera.domain.usecase.expositions.GetExpositionsUseCase
 import com.sahe.itera.domain.usecase.schedule.GetScheduleUseCase
 import com.sahe.itera.domain.usecase.subject.GetSubjectsUseCase
 import com.sahe.itera.domain.usecase.task.GetTasksUseCase
@@ -42,6 +47,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import java.time.format.DateTimeFormatter
 import javax.inject.Inject
 
 private data class HomeModule(
@@ -57,7 +63,10 @@ class HomeViewModel @Inject constructor(
     getSubjects: GetSubjectsUseCase,
     getTasks: GetTasksUseCase,
     private val updateTask: UpdateTaskUseCase,
-    getSchedule: GetScheduleUseCase
+    getSchedule: GetScheduleUseCase,
+    getChecklist: GetChecklistUseCase,
+    private val updateChecklistItem: UpdateChecklistItemUseCase,
+    getExpositions: GetExpositionsUseCase
 ) : ViewModel() {
 
     val hasSubjects = getSubjects()
@@ -67,12 +76,10 @@ class HomeViewModel @Inject constructor(
     val subjects = getSubjects()
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
-    val todayTasks = getTasks()
+    val pendingTasks = getTasks()
         .map { tasks ->
-            val today = java.time.LocalDate.now()
-            tasks.filter { task ->
-                !task.isCompleted && task.dueDateTime?.toLocalDate() == today
-            }
+            tasks.filter { !it.isCompleted && !it.isExam }
+                .sortedBy { it.dueDateTime }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
 
@@ -83,10 +90,6 @@ class HomeViewModel @Inject constructor(
                 .sortedBy { it.startHour }
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
-
-    fun toggleComplete(task: Task) {
-        viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
-    }
 
     val tomorrowSchedule = getSchedule()
         .map { blocks ->
@@ -103,6 +106,25 @@ class HomeViewModel @Inject constructor(
                 .take(5)
         }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val checklistItems = getChecklist()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    val upcomingExpositions = getExpositions()
+        .map { list ->
+            list.filter { !it.isCompleted }
+                .sortedBy { it.dueDateTime }
+                .take(5)
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+
+    fun toggleComplete(task: Task) {
+        viewModelScope.launch { updateTask(task.copy(isCompleted = !task.isCompleted)) }
+    }
+
+    fun toggleChecklistItem(item: ChecklistItem) {
+        viewModelScope.launch { updateChecklistItem(item.copy(isChecked = !item.isChecked)) }
+    }
 }
 
 @Composable
@@ -110,20 +132,23 @@ fun HomeScreen(
     navController: NavController,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val hasSubjects   by viewModel.hasSubjects.collectAsStateWithLifecycle()
-    val subjects      by viewModel.subjects.collectAsStateWithLifecycle()
-    val todayTasks    by viewModel.todayTasks.collectAsStateWithLifecycle()
-    val todaySchedule by viewModel.todaySchedule.collectAsStateWithLifecycle()
-    val tomorrowSchedule by viewModel.tomorrowSchedule.collectAsStateWithLifecycle()
-    val upcomingExams by viewModel.upcomingExams.collectAsStateWithLifecycle()
+    val hasSubjects          by viewModel.hasSubjects.collectAsStateWithLifecycle()
+    val subjects             by viewModel.subjects.collectAsStateWithLifecycle()
+    val pendingTasks         by viewModel.pendingTasks.collectAsStateWithLifecycle()
+    val todaySchedule        by viewModel.todaySchedule.collectAsStateWithLifecycle()
+    val tomorrowSchedule     by viewModel.tomorrowSchedule.collectAsStateWithLifecycle()
+    val upcomingExams        by viewModel.upcomingExams.collectAsStateWithLifecycle()
+    val checklistItems       by viewModel.checklistItems.collectAsStateWithLifecycle()
+    val upcomingExpositions  by viewModel.upcomingExpositions.collectAsStateWithLifecycle()
 
     val modules = listOf(
-        HomeModule("Materias",    Icons.Rounded.School,           "#5685D5", Screen.Subjects.route,  true),
-        HomeModule("Agenda",      Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,     hasSubjects),
-        HomeModule("Horario",     Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route,  true),
-        HomeModule("Asistencia",  Icons.Rounded.EventNote,        "#E2BF55", Screen.Calendar.route,  hasSubjects),
-        HomeModule("Notas",       Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,     hasSubjects),
-        HomeModule("Ajustes",     Icons.Rounded.Settings,         "#78909C", Screen.Settings.route,  true),
+        HomeModule("Materias",   Icons.Rounded.School,           "#5685D5", Screen.Subjects.route,  true),
+        HomeModule("Agenda",     Icons.Rounded.CheckCircle,      "#9283DA", Screen.Tasks.route,     hasSubjects),
+        HomeModule("Horario",    Icons.Rounded.CalendarViewWeek, "#91D19A", Screen.Schedule.route,  true),
+        HomeModule("Asistencia", Icons.Rounded.EventNote,        "#E2BF55", Screen.Calendar.route,  hasSubjects),
+        HomeModule("Notas",      Icons.Rounded.Grade,            "#C6837A", Screen.Notes.route,     hasSubjects),
+        HomeModule("Checklist",  Icons.Rounded.Checklist,        "#5685D5", Screen.Checklist.route, true),
+        HomeModule("Ajustes",    Icons.Rounded.Settings,         "#78909C", Screen.Settings.route,  true),
     )
 
     val today = remember {
@@ -159,9 +184,7 @@ fun HomeScreen(
                 }
             }
 
-            item {
-                HomeMotivationalCard()
-            }
+            item { HomeMotivationalCard() }
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -179,7 +202,7 @@ fun HomeScreen(
                     ) {
                         items(modules) { module ->
                             HomeModuleItem(
-                                module = module,
+                                module  = module,
                                 onClick = { navController.navigate(module.route) }
                             )
                         }
@@ -189,40 +212,49 @@ fun HomeScreen(
 
             item {
                 HomeTodayScheduleCard(
-                    todayBlocks    = todaySchedule,
-                    tomorrowBlocks = tomorrowSchedule,
+                    todayBlocks     = todaySchedule,
+                    tomorrowBlocks  = tomorrowSchedule,
                     onScheduleClick = { navController.navigate(Screen.Schedule.route) }
                 )
             }
 
             item {
                 HomeTodaySummaryCard(
-                    tasks = todayTasks,
-                    onTaskClick = { taskId ->
-                        navController.navigate(Screen.TaskDetail.createRoute(taskId))
-                    },
-                    onToggle = { task -> viewModel.toggleComplete(task) }
+                    tasks       = pendingTasks,
+                    onTaskClick = { navController.navigate(Screen.TaskDetail.createRoute(it)) },
+                    onToggle    = { viewModel.toggleComplete(it) }
                 )
             }
 
             item {
                 HomeUpcomingExamsCard(
-                    exams = upcomingExams,
-                    onExamClick = { taskId ->
-                        navController.navigate(Screen.TaskDetail.createRoute(taskId))
-                    }
+                    exams       = upcomingExams,
+                    onExamClick = { navController.navigate(Screen.TaskDetail.createRoute(it)) }
+                )
+            }
+
+            item {
+                HomeUpcomingExpositionsCard(
+                    expositions       = upcomingExpositions,
+                    onExpositionClick = { navController.navigate(Screen.Tasks.route) }
                 )
             }
 
             if (subjects.isNotEmpty()) {
                 item {
                     HomeSubjectsGradeCard(
-                        subjects = subjects,
-                        onSubjectClick = { subjectId ->
-                            navController.navigate(Screen.Notes.createRoute(subjectId))
-                        }
+                        subjects       = subjects,
+                        onSubjectClick = { navController.navigate(Screen.Notes.createRoute(it)) }
                     )
                 }
+            }
+
+            item {
+                HomeChecklistCard(
+                    items      = checklistItems,
+                    onToggle   = { viewModel.toggleChecklistItem(it) },
+                    onNavigate = { navController.navigate(Screen.Checklist.route) }
+                )
             }
         }
     }
@@ -235,13 +267,8 @@ private fun HomeTodayScheduleCard(
     onScheduleClick: () -> Unit
 ) {
     val currentHour = remember { java.time.LocalTime.now().hour }
-
-    val currentBlock = todayBlocks.firstOrNull {
-        it.startHour <= currentHour && it.endHour > currentHour
-    }
-    val nextBlock = todayBlocks.firstOrNull {
-        it.startHour > currentHour
-    }
+    val currentBlock = todayBlocks.firstOrNull { it.startHour <= currentHour && it.endHour > currentHour }
+    val nextBlock    = todayBlocks.firstOrNull { it.startHour > currentHour }
 
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -249,20 +276,14 @@ private fun HomeTodayScheduleCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "Horario de hoy",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                Text("Horario de hoy", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
                 if (todayBlocks.isNotEmpty()) {
                     Surface(
                         shape = RoundedCornerShape(8.dp),
@@ -280,35 +301,21 @@ private fun HomeTodayScheduleCard(
             }
 
             when {
-                todayBlocks.isEmpty() -> {
-                    Text(
-                        text = "Sin clases hoy.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                currentBlock == null && nextBlock == null -> {
-                    Text(
-                        text = "Ya terminaron todas las clases de hoy.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                todayBlocks.isEmpty() -> Text("Sin clases hoy.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                currentBlock == null && nextBlock == null -> Text(
+                    "Ya terminaron todas las clases de hoy.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                 else -> {
                     currentBlock?.let { block ->
-                        val blockColor = runCatching {
-                            Color(block.subjectColor.toColorInt())
-                        }.getOrDefault(MaterialTheme.colorScheme.primary)
-
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = blockColor.copy(alpha = 0.12f)
-                        ) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        val blockColor = runCatching { Color(block.subjectColor.toColorInt()) }
+                            .getOrDefault(MaterialTheme.colorScheme.primary)
+                        Surface(shape = RoundedCornerShape(12.dp), color = blockColor.copy(alpha = 0.12f)) {
+                            Row(modifier = Modifier.fillMaxWidth().padding(12.dp),
                                 verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(10.dp)
-                            ) {
+                                horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                                 Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(blockColor))
                                 Column(modifier = Modifier.weight(1f)) {
                                     Text("En curso", style = MaterialTheme.typography.labelSmall, color = blockColor)
@@ -320,17 +327,12 @@ private fun HomeTodayScheduleCard(
                             }
                         }
                     }
-
                     nextBlock?.let { block ->
-                        val blockColor = runCatching {
-                            Color(block.subjectColor.toColorInt())
-                        }.getOrDefault(MaterialTheme.colorScheme.primary)
-
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
+                        val blockColor = runCatching { Color(block.subjectColor.toColorInt()) }
+                            .getOrDefault(MaterialTheme.colorScheme.primary)
+                        Row(modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(10.dp)
-                        ) {
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                             Box(modifier = Modifier.size(10.dp).clip(CircleShape)
                                 .background(blockColor.copy(alpha = 0.5f)))
                             Column(modifier = Modifier.weight(1f)) {
@@ -349,48 +351,26 @@ private fun HomeTodayScheduleCard(
 
             if (tomorrowBlocks.isNotEmpty()) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
-
-                Text(
-                    text = "Mañana",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontWeight = FontWeight.SemiBold
-                )
-
+                Text("Mañana", style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.SemiBold)
                 tomorrowBlocks.forEach { block ->
-                    val blockColor = runCatching {
-                        Color(block.subjectColor.toColorInt())
-                    }.getOrDefault(MaterialTheme.colorScheme.primary)
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
+                    val blockColor = runCatching { Color(block.subjectColor.toColorInt()) }
+                        .getOrDefault(MaterialTheme.colorScheme.primary)
+                    Row(modifier = Modifier.fillMaxWidth(),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .clip(CircleShape)
-                                .background(blockColor.copy(alpha = 0.6f))
-                        )
-                        Text(
-                            text = block.subjectName,
-                            style = MaterialTheme.typography.bodyMedium,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(modifier = Modifier.size(8.dp).clip(CircleShape)
+                            .background(blockColor.copy(alpha = 0.6f)))
+                        Text(block.subjectName, style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.8f),
-                            modifier = Modifier.weight(1f)
-                        )
-                        Text(
-                            text = "${block.startHour}:00 – ${block.endHour}:00",
+                            modifier = Modifier.weight(1f))
+                        Text("${block.startHour}:00 – ${block.endHour}:00",
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
-
                     if (block != tomorrowBlocks.last()) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
-                            modifier = Modifier.padding(vertical = 2.dp)
-                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f),
+                            modifier = Modifier.padding(vertical = 2.dp))
                     }
                 }
             }
@@ -401,8 +381,7 @@ private fun HomeTodayScheduleCard(
 @Composable
 private fun HomeModuleItem(module: HomeModule, onClick: () -> Unit) {
     val color = remember(module.colorHex) {
-        runCatching { Color(module.colorHex.toColorInt()) }
-            .getOrDefault(Color(0xFF5685D5))
+        runCatching { Color(module.colorHex.toColorInt()) }.getOrDefault(Color(0xFF5685D5))
     }
     val finalColor = if (module.enabled) color else color.copy(alpha = 0.35f)
 
@@ -410,40 +389,28 @@ private fun HomeModuleItem(module: HomeModule, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .aspectRatio(1f)
-            .then(
-                if (module.enabled) Modifier.clickable { onClick() }
-                else Modifier
-            ),
+            .then(if (module.enabled) Modifier.clickable { onClick() } else Modifier),
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
         Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(14.dp)
+            modifier = Modifier.fillMaxSize().padding(14.dp)
                 .alpha(if (module.enabled) 1f else 0.4f),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
             Box(
-                modifier = Modifier
-                    .size(42.dp)
-                    .clip(RoundedCornerShape(14.dp))
+                modifier = Modifier.size(42.dp).clip(RoundedCornerShape(14.dp))
                     .background(finalColor.copy(alpha = 0.15f)),
                 contentAlignment = Alignment.Center
             ) {
-                Icon(
-                    imageVector = module.icon,
-                    contentDescription = module.label,
-                    tint = finalColor,
-                    modifier = Modifier.size(22.dp)
-                )
+                Icon(module.icon, contentDescription = module.label,
+                    tint = finalColor, modifier = Modifier.size(22.dp))
             }
             Text(
                 text = module.label,
                 style = MaterialTheme.typography.labelMedium,
-                color = if (module.enabled)
-                    MaterialTheme.colorScheme.onSurface
+                color = if (module.enabled) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
                 maxLines = 1
             )
@@ -463,63 +430,39 @@ private fun HomeTodaySummaryCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Hoy",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Tareas pendientes", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
                 if (tasks.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                    ) {
-                        Text(
-                            text = "${tasks.size} pendiente${if (tasks.size > 1) "s" else ""}",
+                    Surface(shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)) {
+                        Text("${tasks.size} pendiente${if (tasks.size > 1) "s" else ""}",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                     }
                 }
             }
 
             if (tasks.isEmpty()) {
-                Text(
-                    text = "No tienes tareas pendientes para hoy.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Text("No tienes tareas pendientes.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
             } else {
                 tasks.forEach { task ->
-                    val subjectColor = task.subjectColor?.let {
-                        runCatching { Color(it.toColorInt()) }.getOrNull()
-                    }
                     val priorityColor = when (task.priority) {
                         Priority.NORMAL     -> Color(0xFF9E9E9E)
                         Priority.IMPORTANTE -> Color(0xFFE2BF55)
                         Priority.URGENTE    -> Color(0xFFC6837A)
                     }
-
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onTaskClick(task.id) }
+                        modifier = Modifier.fillMaxWidth().clickable { onTaskClick(task.id) }
                     ) {
-                        IconButton(
-                            onClick = { onToggle(task) },
-                            modifier = Modifier.size(32.dp)
-                        ) {
+                        IconButton(onClick = { onToggle(task) }, modifier = Modifier.size(32.dp)) {
                             Icon(
                                 imageVector = if (task.isCompleted) Icons.Rounded.CheckCircle
                                 else Icons.Rounded.RadioButtonUnchecked,
@@ -530,33 +473,32 @@ private fun HomeTodaySummaryCard(
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = task.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
+                            Text(task.title, style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                             task.subjectName?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                                Text(it, style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
                             }
                         }
                         task.dueDateTime?.let { dt ->
+                            val today     = java.time.LocalDate.now()
+                            val isToday   = dt.toLocalDate() == today
+                            val isOverdue = dt.toLocalDate().isBefore(today)
                             Text(
-                                text = dt.format(
-                                    java.time.format.DateTimeFormatter.ofPattern("HH:mm")
-                                ),
+                                text = when {
+                                    isToday -> "Hoy · ${dt.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                                    else    -> dt.format(DateTimeFormatter.ofPattern("d MMM · HH:mm", java.util.Locale("es")))
+                                },
                                 style = MaterialTheme.typography.labelMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                color = when {
+                                    isOverdue -> Color(0xFFC6837A)
+                                    isToday   -> MaterialTheme.colorScheme.primary
+                                    else      -> MaterialTheme.colorScheme.onSurfaceVariant
+                                }
                             )
                         }
-                        Surface(
-                            shape = RoundedCornerShape(6.dp),
-                            color = priorityColor.copy(alpha = 0.15f)
-                        ) {
+                        Surface(shape = RoundedCornerShape(6.dp),
+                            color = priorityColor.copy(alpha = 0.15f)) {
                             Text(
                                 text = when (task.priority) {
                                     Priority.NORMAL     -> "Normal"
@@ -569,12 +511,194 @@ private fun HomeTodaySummaryCard(
                             )
                         }
                     }
-
                     if (task != tasks.last()) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeUpcomingExamsCard(
+    exams: List<Task>,
+    onExamClick: (Long) -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Próximos exámenes", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
+                if (exams.isNotEmpty()) {
+                    Surface(shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF5685D5).copy(alpha = 0.12f)) {
+                        Text("${exams.size}", style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF5685D5),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                    }
+                }
+            }
+
+            if (exams.isEmpty()) {
+                Text("Sin exámenes próximos.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                exams.forEach { exam ->
+                    val subjectColor = exam.subjectColor?.let {
+                        runCatching { Color(it.toColorInt()) }.getOrNull()
+                    }
+                    val daysLeft = exam.dueDateTime?.let {
+                        java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), it.toLocalDate())
+                    }
+                    val daysColor = when {
+                        daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        daysLeft <= 1L   -> Color(0xFFC6837A)
+                        daysLeft <= 3L   -> Color(0xFFE2BF55)
+                        else             -> Color(0xFF91D19A)
+                    }
+                    Row(modifier = Modifier.fillMaxWidth().clickable { onExamClick(exam.id) },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape)
+                            .background(subjectColor ?: MaterialTheme.colorScheme.primary))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(exam.title, style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            exam.subjectName?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        daysLeft?.let {
+                            Surface(shape = RoundedCornerShape(6.dp), color = daysColor.copy(alpha = 0.15f)) {
+                                Text(
+                                    text = when (daysLeft) {
+                                        0L   -> "Hoy"
+                                        1L   -> "Mañana"
+                                        else -> "En $daysLeft días"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = daysColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+                    if (exam != exams.last()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 4.dp))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HomeUpcomingExpositionsCard(
+    expositions: List<Exposition>,
+    onExpositionClick: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Próximas exposiciones", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
+                if (expositions.isNotEmpty()) {
+                    Surface(shape = RoundedCornerShape(8.dp),
+                        color = Color(0xFF9283DA).copy(alpha = 0.12f)) {
+                        Text("${expositions.size}", style = MaterialTheme.typography.labelMedium,
+                            color = Color(0xFF9283DA),
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                    }
+                }
+            }
+
+            if (expositions.isEmpty()) {
+                Text("Sin exposiciones próximas.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                expositions.forEach { exposition ->
+                    val subjectColor = exposition.subjectColor?.let {
+                        runCatching { Color(it.toColorInt()) }.getOrNull()
+                    }
+                    val daysLeft = exposition.dueDateTime?.let {
+                        java.time.temporal.ChronoUnit.DAYS.between(java.time.LocalDate.now(), it.toLocalDate())
+                    }
+                    val daysColor = when {
+                        daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
+                        daysLeft <= 1L   -> Color(0xFFC6837A)
+                        daysLeft <= 3L   -> Color(0xFFE2BF55)
+                        else             -> Color(0xFF91D19A)
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth().clickable { onExpositionClick() },
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(modifier = Modifier.size(10.dp).clip(CircleShape)
+                            .background(subjectColor ?: Color(0xFF9283DA)))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(exposition.topic, style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            exposition.subjectName?.let {
+                                Text(it, style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                            exposition.dueDateTime?.let { dt ->
+                                val today     = java.time.LocalDate.now()
+                                val isToday   = dt.toLocalDate() == today
+                                val isOverdue = dt.toLocalDate().isBefore(today)
+                                Text(
+                                    text = when {
+                                        isToday -> "Hoy · ${dt.format(DateTimeFormatter.ofPattern("HH:mm"))}"
+                                        else    -> dt.format(DateTimeFormatter.ofPattern("d MMM · HH:mm", java.util.Locale("es")))
+                                    },
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = when {
+                                        isOverdue -> Color(0xFFC6837A)
+                                        isToday   -> MaterialTheme.colorScheme.primary
+                                        else      -> MaterialTheme.colorScheme.onSurfaceVariant
+                                    }
+                                )
+                            }
+                        }
+                        daysLeft?.let {
+                            Surface(shape = RoundedCornerShape(6.dp), color = daysColor.copy(alpha = 0.15f)) {
+                                Text(
+                                    text = when (daysLeft) {
+                                        0L   -> "Hoy"
+                                        1L   -> "Mañana"
+                                        else -> "En $daysLeft días"
+                                    },
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = daysColor,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                                )
+                            }
+                        }
+                    }
+
+                    if (exposition != expositions.last()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
+                            modifier = Modifier.padding(vertical = 4.dp))
                     }
                 }
             }
@@ -593,20 +717,12 @@ private fun HomeSubjectsGradeCard(
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Notas",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Notas", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
                 val avgs = subjects.mapNotNull { it.currentAverage }
                 if (avgs.isNotEmpty()) {
                     val overall = avgs.average().toFloat()
@@ -615,202 +731,50 @@ private fun HomeSubjectsGradeCard(
                         overall >= 11f -> Color(0xFFE2BF55)
                         else           -> Color(0xFFC6837A)
                     }
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = color.copy(alpha = 0.15f)
-                    ) {
-                        Text(
-                            text = "Prom. ${"%.1f".format(overall)}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = color,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
+                    Surface(shape = RoundedCornerShape(8.dp), color = color.copy(alpha = 0.15f)) {
+                        Text("Prom. ${"%.1f".format(overall)}",
+                            style = MaterialTheme.typography.labelMedium, color = color,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
                     }
                 }
             }
 
             subjects.forEach { subject ->
-                val subjectColor = runCatching {
-                    Color(subject.colorHex.toColorInt())
-                }.getOrDefault(MaterialTheme.colorScheme.primary)
-
+                val subjectColor = runCatching { Color(subject.colorHex.toColorInt()) }
+                    .getOrDefault(MaterialTheme.colorScheme.primary)
                 val avgColor = when {
                     subject.currentAverage == null -> MaterialTheme.colorScheme.onSurfaceVariant
                     subject.currentAverage >= 14f  -> Color(0xFF91D19A)
                     subject.currentAverage >= 11f  -> Color(0xFFE2BF55)
                     else                           -> Color(0xFFC6837A)
                 }
-
                 val isAtRisk = subject.currentAverage != null &&
                         subject.currentAverage < subject.targetGrade
 
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(10.dp))
+                    modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(10.dp))
                         .clickable { onSubjectClick(subject.id) }
                         .padding(vertical = 6.dp, horizontal = 4.dp),
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(10.dp)
-                            .clip(CircleShape)
-                            .background(subjectColor)
-                    )
-                    Text(
-                        text = subject.name,
-                        style = MaterialTheme.typography.bodyMedium,
+                    Box(modifier = Modifier.size(10.dp).clip(CircleShape).background(subjectColor))
+                    Text(subject.name, style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.weight(1f),
-                        maxLines = 1
-                    )
+                        modifier = Modifier.weight(1f), maxLines = 1)
                     if (isAtRisk) {
-                        Icon(
-                            Icons.Rounded.Warning,
-                            contentDescription = null,
-                            tint = Color(0xFFC6837A),
-                            modifier = Modifier.size(14.dp)
-                        )
+                        Icon(Icons.Rounded.Warning, null, tint = Color(0xFFC6837A),
+                            modifier = Modifier.size(14.dp))
                     }
                     Text(
-                        text = if (subject.currentAverage != null)
-                            "%.1f".format(subject.currentAverage)
-                        else "—",
+                        text = if (subject.currentAverage != null) "%.1f".format(subject.currentAverage) else "—",
                         style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = avgColor
+                        fontWeight = FontWeight.Bold, color = avgColor
                     )
                 }
-
                 if (subject != subjects.last()) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
-                        modifier = Modifier.padding(vertical = 2.dp)
-                    )
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun HomeUpcomingExamsCard(
-    exams: List<Task>,
-    onExamClick: (Long) -> Unit
-) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        elevation = CardDefaults.cardElevation(0.dp)
-    ) {
-        Column(
-            modifier = Modifier.padding(20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Próximos exámenes",
-                    style = MaterialTheme.typography.titleMedium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                if (exams.isNotEmpty()) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = Color(0xFF5685D5).copy(alpha = 0.12f)
-                    ) {
-                        Text(
-                            text = "${exams.size}",
-                            style = MaterialTheme.typography.labelMedium,
-                            color = Color(0xFF5685D5),
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
-                }
-            }
-
-            if (exams.isEmpty()) {
-                Text(
-                    text = "Sin exámenes próximos.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            } else {
-                exams.forEach { exam ->
-                    val subjectColor = exam.subjectColor?.let {
-                        runCatching { Color(it.toColorInt()) }.getOrNull()
-                    }
-                    val daysLeft = exam.dueDateTime?.let {
-                        java.time.temporal.ChronoUnit.DAYS.between(
-                            java.time.LocalDate.now(), it.toLocalDate()
-                        )
-                    }
-                    val daysColor = when {
-                        daysLeft == null -> MaterialTheme.colorScheme.onSurfaceVariant
-                        daysLeft <= 1L   -> Color(0xFFC6837A)
-                        daysLeft <= 3L   -> Color(0xFFE2BF55)
-                        else             -> Color(0xFF91D19A)
-                    }
-
-                    Row(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable { onExamClick(exam.id) },
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(10.dp)
-                                .clip(CircleShape)
-                                .background(subjectColor ?: MaterialTheme.colorScheme.primary)
-                        )
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = exam.title,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1
-                            )
-                            exam.subjectName?.let {
-                                Text(
-                                    text = it,
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-                        daysLeft?.let {
-                            Surface(
-                                shape = RoundedCornerShape(6.dp),
-                                color = daysColor.copy(alpha = 0.15f)
-                            ) {
-                                Text(
-                                    text = when (daysLeft) {
-                                        0L   -> "Hoy"
-                                        1L   -> "Mañana"
-                                        else -> "En $daysLeft días"
-                                    },
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = daysColor,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                        }
-                    }
-
-                    if (exam != exams.last()) {
-                        HorizontalDivider(
-                            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f),
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
-                    }
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                        modifier = Modifier.padding(vertical = 2.dp))
                 }
             }
         }
@@ -820,7 +784,6 @@ private fun HomeUpcomingExamsCard(
 @Composable
 private fun HomeMotivationalCard() {
     val quote = remember { motivationalQuotes.random() }
-
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(20.dp),
@@ -829,23 +792,80 @@ private fun HomeMotivationalCard() {
         ),
         elevation = CardDefaults.cardElevation(0.dp)
     ) {
-        Row(
-            modifier = Modifier.padding(16.dp),
+        Row(modifier = Modifier.padding(16.dp),
             horizontalArrangement = Arrangement.spacedBy(10.dp),
-            verticalAlignment = Alignment.Top
-        ) {
-            Icon(
-                Icons.Rounded.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(16.dp).padding(top = 2.dp)
-            )
-            Text(
-                text = "\"$quote\"",
-                style = MaterialTheme.typography.bodyMedium,
+            verticalAlignment = Alignment.Top) {
+            Icon(Icons.Rounded.AutoAwesome, null, tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp).padding(top = 2.dp))
+            Text("\"$quote\"", style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurface,
-                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic
-            )
+                fontStyle = androidx.compose.ui.text.font.FontStyle.Italic)
+        }
+    }
+}
+
+@Composable
+private fun HomeChecklistCard(
+    items: List<ChecklistItem>,
+    onToggle: (ChecklistItem) -> Unit,
+    onNavigate: () -> Unit
+) {
+    val pending = items.filter { !it.isChecked }.take(5)
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(20.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        elevation = CardDefaults.cardElevation(0.dp)
+    ) {
+        Column(modifier = Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Checklist", style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurface)
+                if (items.isNotEmpty()) {
+                    Surface(shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                        modifier = Modifier.clickable { onNavigate() }) {
+                        Text("Ver todo", style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp))
+                    }
+                }
+            }
+            if (pending.isEmpty()) {
+                Text("Sin items pendientes.", style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            } else {
+                pending.forEach { item ->
+                    Row(verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        modifier = Modifier.fillMaxWidth()) {
+                        Checkbox(checked = item.isChecked, onCheckedChange = { onToggle(item) },
+                            modifier = Modifier.size(20.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(item.material, style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                            item.subjectName?.let { name ->
+                                Text(name, style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            }
+                        }
+                        item.dueDate?.let { date ->
+                            Text(
+                                text = date.format(DateTimeFormatter.ofPattern("d MMM", java.util.Locale("es"))),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (date.isBefore(java.time.LocalDate.now()))
+                                    Color(0xFFC6837A) else MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    if (item != pending.last()) {
+                        HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.2f),
+                            modifier = Modifier.padding(vertical = 2.dp))
+                    }
+                }
+            }
         }
     }
 }

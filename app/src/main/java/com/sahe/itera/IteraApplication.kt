@@ -4,6 +4,7 @@ import android.app.Application
 import dagger.hilt.android.HiltAndroidApp
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
+import com.sahe.itera.core.worker.ArchivedSubjectCleanupWorker
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -15,4 +16,9 @@ class IteraApplication : Application(), Configuration.Provider {
         get() = Configuration.Builder()
             .setWorkerFactory(workerFactory)
             .build()
+
+    override fun onCreate() {
+        super.onCreate()
+        ArchivedSubjectCleanupWorker.schedule(this)
+    }
 }

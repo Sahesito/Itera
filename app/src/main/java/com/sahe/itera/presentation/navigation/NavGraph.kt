@@ -97,6 +97,12 @@ fun IteraNavGraph(navController: NavHostController) {
             AttendanceScreen(onBack = { navController.safePopBackStack() })
         }
 
+        composable(Screen.Checklist.route) {
+            com.sahe.itera.presentation.screens.checklist.ChecklistScreen(
+                onBack = { navController.safePopBackStack() }
+            )
+        }
+
         composable(Screen.Settings.route) {
             SettingsScreen(onBack = { navController.safePopBackStack() })
         }

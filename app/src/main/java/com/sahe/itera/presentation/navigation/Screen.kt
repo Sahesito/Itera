@@ -17,5 +17,6 @@ sealed class Screen(val route: String) {
             if (subjectId != null) "notes?subjectId=$subjectId"
             else "notes?subjectId=-1"
     }
+    object Checklist    : Screen("checklist")
     object Settings     : Screen("settings")
 }
