@@ -3,6 +3,7 @@ package com.sahe.itera.di
 import android.content.Context
 import androidx.room.Room
 import com.sahe.itera.data.database.IteraDatabase
+import com.sahe.itera.data.database.IteraMigrations
 import com.sahe.itera.data.database.dao.AttendanceDao
 import com.sahe.itera.data.database.dao.ChecklistItemDao
 import com.sahe.itera.data.database.dao.ExpositionDao
@@ -29,6 +30,7 @@ object DatabaseModule {
             IteraDatabase::class.java,
             "itera_database"
         )
+            .addMigrations(*IteraMigrations.ALL)
             .fallbackToDestructiveMigration(true)
             .build()
 
