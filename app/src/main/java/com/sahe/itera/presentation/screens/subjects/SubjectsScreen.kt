@@ -415,7 +415,7 @@ private fun EditSubjectDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         shape = RoundedCornerShape(24.dp),
         title = { Text("Editar materia", style = MaterialTheme.typography.titleLarge) },
         text = {
@@ -593,7 +593,7 @@ private fun AddSubjectDialog(
     }
 
     AlertDialog(
-        onDismissRequest = onDismiss,
+        onDismissRequest = {},
         shape = RoundedCornerShape(24.dp),
         title = { Text("Nueva materia", style = MaterialTheme.typography.titleLarge) },
         text = {
